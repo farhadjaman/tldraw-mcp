@@ -205,6 +205,66 @@ server.tool(
 );
 
 server.tool(
+  "deleteShape",
+  {
+    label: z
+      .string()
+      .describe(
+        "The label/handle of the shape to delete (set via createShape/addText)."
+      ),
+  },
+  async ({ label }) => {
+    broadcastOperation({ type: "deleteShape", payload: { label } });
+    return {
+      content: [{ type: "text", text: `Deleted shape "${label}"` }],
+    };
+  }
+);
+
+server.tool(
+  "deleteShapesByLabels",
+  {
+    labels: z
+      .array(z.string())
+      .describe(
+        "The labels/handles of the shapes to delete (set via createShape/addText)."
+      ),
+  },
+  async ({ labels }) => {
+    broadcastOperation({ type: "deleteShapesByLabels", payload: { labels } });
+    return {
+      content: [
+        { type: "text", text: `Deleted ${labels.length} shape(s)` },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "clearCanvas",
+  {},
+  async () => {
+    broadcastOperation({ type: "clearCanvas", payload: {} });
+    return {
+      content: [
+        { type: "text", text: "Cleared all shapes on the current page" },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "deletePage",
+  { name: z.string() },
+  async ({ name }) => {
+    broadcastOperation({ type: "deletePage", payload: { name } });
+    return {
+      content: [{ type: "text", text: `Deleted page "${name}"` }],
+    };
+  }
+);
+
+server.tool(
   "createFlowchartStep",
   {
     stepNumber: z.number(),

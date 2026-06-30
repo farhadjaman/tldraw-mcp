@@ -1,5 +1,15 @@
 # Tldraw MCP Server
 
+// rebuild after a latest change
+cd ~/tldraw-mcp && docker compose up -d --build
+
+//to check whether the tool is available or not
+  curl -s -X POST http://127.0.0.1:3102/mcp \
+    -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' \
+    | tr ',' '\n' | grep drawArrow
+
+
 This project integrates [tldraw](https://tldraw.com/) with Claude AI using the Model Context Protocol (MCP). It allows Claude to create and manipulate diagrams based on natural language instructions.
 
 ## Getting Started
@@ -363,9 +373,13 @@ The following tools are available to Claude via the MCP server:
 - `drawArrow`: Draw a free-form arrow between two points (not bound to shapes)
 - `addText`: Add standalone text elements
 - `createFlowchartStep`: Create a flowchart step (with optional connection to previous step)
+- `deleteShape`: Delete a single shape by its `label`/text handle
+- `deleteShapesByLabels`: Delete multiple shapes by their `label`/text handles
+- `clearCanvas`: Delete all shapes on the current page
 - `getSnapshot`: Get a snapshot of the current diagram
 - `createPage`: Create a new page and switch to it (subsequent shapes land there)
 - `switchPage`: Switch the active page by name
+- `deletePage`: Delete a page by name (cannot delete the only/last page)
 - `listPages`: List all pages and which one is active
 
 ## Technology Stack

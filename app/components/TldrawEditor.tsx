@@ -155,6 +155,57 @@ export default function TldrawEditor() {
             console.log("Created text with id:", id);
             break;
           }
+          case "deleteShape": {
+            const { label } = operation.payload;
+            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
+
+            if (editor.getShape(shapeId)) {
+              editor.deleteShape(shapeId);
+              delete shapesRef.current[label];
+              console.log("Deleted shape:", label);
+            } else {
+              console.warn("deleteShape: unknown shape handle:", label);
+            }
+            break;
+          }
+
+          case "deleteShapesByLabels": {
+            const { labels } = operation.payload as { labels: string[] };
+            const ids = labels
+              .map((l) => (shapesRef.current[l] || l) as TLShapeId)
+              .filter((id) => editor.getShape(id));
+
+            if (ids.length) editor.deleteShapes(ids);
+            for (const l of labels) delete shapesRef.current[l];
+            console.log("Deleted shapes:", ids.length, "of", labels.length);
+            break;
+          }
+
+          case "clearCanvas": {
+            const ids = Array.from(editor.getCurrentPageShapeIds());
+            if (ids.length) editor.deleteShapes(ids);
+            shapesRef.current = {};
+            console.log("Cleared canvas:", ids.length, "shapes");
+            break;
+          }
+
+          case "deletePage": {
+            const { name } = operation.payload;
+            const pages = editor.getPages();
+            const page = pages.find((p) => p.name === name);
+            if (!page) {
+              console.warn("deletePage: no page named:", name);
+              break;
+            }
+            if (pages.length <= 1) {
+              console.warn("deletePage: cannot delete the only page");
+              break;
+            }
+            editor.deletePage(page.id);
+            console.log("Deleted page:", name);
+            break;
+          }
+
           case "createFlowchartStep": {
             const { stepNumber, title, description, x, y, connectToPrevious } =
               operation.payload;
