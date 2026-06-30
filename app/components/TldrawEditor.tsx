@@ -1,8 +1,38 @@
 "use client";
 
-import { Editor, Tldraw } from "@tldraw/tldraw";
+import {
+  createBindingId,
+  createShapeId,
+  Editor,
+  TLShapeId,
+  Tldraw,
+  toRichText,
+} from "@tldraw/tldraw";
 import "@tldraw/tldraw/tldraw.css";
 import { useEffect, useRef } from "react";
+
+const GEO_TYPES = ["rectangle", "ellipse", "triangle", "diamond"] as const;
+
+function bindArrow(
+  editor: Editor,
+  arrowId: TLShapeId,
+  shapeId: TLShapeId,
+  terminal: "start" | "end"
+) {
+  editor.createBinding({
+    id: createBindingId(),
+    type: "arrow",
+    fromId: arrowId,
+    toId: shapeId,
+    props: {
+      terminal,
+      normalizedAnchor: { x: 0.5, y: 0.5 },
+      isExact: false,
+      isPrecise: false,
+      snap: "none",
+    },
+  });
+}
 
 export default function TldrawEditor() {
   const editorRef = useRef<Editor | null>(null);
@@ -33,38 +63,23 @@ export default function TldrawEditor() {
 
         switch (operation.type) {
           case "createShape": {
-            const { shapeType, x, y, width, height, text } = operation.payload; // Create the shape based on the type - tldraw uses "geo" for basic shapes
-            const id = editor.createShape({
+            const { shapeType, x, y, width, height, text } = operation.payload;
+            const geo = GEO_TYPES.includes(shapeType) ? shapeType : "rectangle";
+            const id = createShapeId();
+            editor.createShape({
+              id,
               type: "geo",
               x,
               y,
               props: {
                 w: width,
                 h: height,
-                geo:
-                  shapeType === "rectangle"
-                    ? "rectangle"
-                    : shapeType === "ellipse"
-                    ? "ellipse"
-                    : shapeType === "triangle"
-                    ? "triangle"
-                    : shapeType === "diamond"
-                    ? "diamond"
-                    : "rectangle",
+                geo,
+                ...(text ? { richText: toRichText(text) } : {}),
               },
-            }); // If text is provided, update the shape to add text
-            if (text && typeof id === "string") {
-              editor.updateShape({
-                id,
-                type: "geo",
-                props: {
-                  text: text,
-                },
-              });
-            }
+            });
 
-            // Store the created shape ID for future reference
-            if ("stepNumber" in operation.payload && typeof id === "string") {
+            if ("stepNumber" in operation.payload) {
               shapesRef.current[`step-${operation.payload.stepNumber}`] = id;
             }
 
@@ -75,39 +90,34 @@ export default function TldrawEditor() {
           case "connectShapes": {
             const { fromId, toId, arrowType } = operation.payload;
 
-            const actualFromId = shapesRef.current[fromId] || fromId;
-            const actualToId = shapesRef.current[toId] || toId;
+            const fromShape = (shapesRef.current[fromId] || fromId) as TLShapeId;
+            const toShape = (shapesRef.current[toId] || toId) as TLShapeId;
 
-            const id = editor.createShape({
+            const arrowId = createShapeId();
+            editor.createShape({
+              id: arrowId,
               type: "arrow",
-              props: {
-                start: {
-                  type: "binding",
-                  boundShapeId: actualFromId,
-                },
-                end: {
-                  type: "binding",
-                  boundShapeId: actualToId,
-                },
-
-                bend: arrowType === "curved" ? 30 : 0,
-              },
+              props: { bend: arrowType === "curved" ? 30 : 0 },
             });
+            bindArrow(editor, arrowId, fromShape, "start");
+            bindArrow(editor, arrowId, toShape, "end");
 
-            console.log("Created arrow with id:", id);
+            console.log("Created arrow with id:", arrowId);
             break;
           }
 
           case "addText": {
             const { x, y, text, fontSize } = operation.payload;
 
-            const id = editor.createShape({
+            const id = createShapeId();
+            editor.createShape({
+              id,
               type: "text",
               x,
               y,
               props: {
-                text,
-                fontSize: fontSize || 20,
+                richText: toRichText(text),
+                scale: fontSize ? fontSize / 20 : 1,
               },
             });
 
@@ -118,7 +128,9 @@ export default function TldrawEditor() {
             const { stepNumber, title, description, x, y, connectToPrevious } =
               operation.payload;
 
-            const id = editor.createShape({
+            const id = createShapeId();
+            editor.createShape({
+              id,
               type: "geo",
               x,
               y,
@@ -126,39 +138,24 @@ export default function TldrawEditor() {
                 w: 160,
                 h: 80,
                 geo: "rectangle",
+                richText: toRichText(
+                  title + (description ? `\n${description}` : "")
+                ),
               },
-            }); // Update the shape to add the text content
-            if (title && typeof id === "string") {
-              editor.updateShape({
-                id,
-                type: "geo",
-                props: {
-                  text: title + (description ? `\n${description}` : ""),
-                },
-              });
-            }
+            });
 
-            if (typeof id === "string") {
-              shapesRef.current[`step-${stepNumber}`] = id;
-            }
+            shapesRef.current[`step-${stepNumber}`] = id;
 
             if (connectToPrevious && stepNumber > 1) {
-              const prevStepId = shapesRef.current[`step-${stepNumber - 1}`];
+              const prevStepId = shapesRef.current[
+                `step-${stepNumber - 1}`
+              ] as TLShapeId | undefined;
 
               if (prevStepId) {
-                editor.createShape({
-                  type: "arrow",
-                  props: {
-                    start: {
-                      type: "binding",
-                      boundShapeId: prevStepId,
-                    },
-                    end: {
-                      type: "binding",
-                      boundShapeId: id,
-                    },
-                  },
-                });
+                const arrowId = createShapeId();
+                editor.createShape({ id: arrowId, type: "arrow" });
+                bindArrow(editor, arrowId, prevStepId, "start");
+                bindArrow(editor, arrowId, id, "end");
               }
             }
 
@@ -216,6 +213,7 @@ export default function TldrawEditor() {
   return (
     <div style={{ height: "calc(100vh - 80px)", width: "100%" }}>
       <Tldraw
+        persistenceKey="tldraw-mcp"
         onMount={(editor) => {
           editorRef.current = editor;
           console.log("Tldraw editor mounted");

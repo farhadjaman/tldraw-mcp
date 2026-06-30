@@ -2,11 +2,36 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { broadcastOperation, eventBus, TldrawOperation } from "./eventBus.js";
-import { createServer } from "http";
+import { createServer, request as httpRequest } from "http";
 import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+import * as os from "os";
 
-const mcpLogFile = fs.createWriteStream("./mcp-server.log", { flags: "a" });
-const httpLogFile = fs.createWriteStream("./http-server.log", { flags: "a" });
+// Resolve log paths relative to this script (NOT the process cwd, which is "/"
+// when launched by Claude Desktop and is not writable -> EACCES crash).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+function resolveLogPath(name: string): string {
+  for (const dir of [__dirname, os.tmpdir()]) {
+    try {
+      fs.accessSync(dir, fs.constants.W_OK);
+      return path.join(dir, name);
+    } catch {
+      /* try next */
+    }
+  }
+  return path.join(os.tmpdir(), name);
+}
+
+const mcpLogFile = fs.createWriteStream(resolveLogPath("mcp-server.log"), {
+  flags: "a",
+});
+const httpLogFile = fs.createWriteStream(resolveLogPath("http-server.log"), {
+  flags: "a",
+});
+// Never let a logging failure take down the MCP server.
+mcpLogFile.on("error", () => {});
+httpLogFile.on("error", () => {});
 
 function logToFile(message: string) {
   const timestamp = new Date().toISOString();
@@ -17,6 +42,10 @@ function logHttpToFile(message: string) {
   const timestamp = new Date().toISOString();
   httpLogFile.write(`${timestamp} - ${message}\n`);
 }
+
+// Each browser SSE (re)connection registers a tldraw-operation listener; under Next
+// dev/HMR these churn fast enough to trip the default 10-listener leak warning.
+eventBus.setMaxListeners(0);
 
 // Log to file for both MCP and HTTP server
 logToFile("[Combined Server] Starting MCP and HTTP server...");
@@ -299,11 +328,42 @@ const httpServer = createServer((req, res) => {
         );
       }
     });
+  } else if (req.url === "/api/shutdown" && req.method === "POST") {
+    // A newer instance is taking over port 3002. Step down so it can bind.
+    logHttpToFile("[HTTP Server] Received shutdown request; exiting to free port 3002");
+    res.writeHead(200);
+    res.end("ok");
+    httpServer.close();
+    setTimeout(() => process.exit(0), 100);
   } else {
     logHttpToFile(`[HTTP Server] Unknown endpoint: ${req.url}`);
     res.writeHead(404);
     res.end("Not found");
   }
+});
+
+// The browser's SSE stream and the MCP tool handlers must share THIS process's
+// in-memory eventBus. If a stale instance (e.g. a previous Claude Desktop launch
+// that never exited) still owns port 3002, the browser stays attached to the dead
+// instance and never sees our operations. So when we hit EADDRINUSE we ask the
+// stale instance to step down, then take over the port ourselves.
+let portTakeoverAttempted = false;
+httpServer.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE" && !portTakeoverAttempted) {
+    portTakeoverAttempted = true;
+    logHttpToFile("[HTTP Server] Port 3002 in use; asking the stale instance to step down");
+    const shutdownReq = httpRequest({
+      hostname: "localhost",
+      port: 3002,
+      path: "/api/shutdown",
+      method: "POST",
+    });
+    shutdownReq.on("error", () => {});
+    shutdownReq.end();
+    setTimeout(() => httpServer.listen(3002), 600);
+    return;
+  }
+  logHttpToFile(`[HTTP Server] listen error: ${err.code || err.message}`);
 });
 
 // Listen on port 3002

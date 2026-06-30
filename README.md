@@ -47,29 +47,31 @@ This project integrates [tldraw](https://tldraw.com/) with Claude AI using the M
 
 ### Starting the Application
 
-You need to start three components in the following order:
+The MCP server and the SSE/HTTP bridge (port 3002) run in a **single process** that
+Claude Desktop launches for you from `claude_desktop_config.json`. Do **not** start a
+server manually (`npm start` / `npm run start:http`) — a second copy would grab port
+3002 and the canvas would attach to the wrong process, so nothing would render.
 
-1. **Start the HTTP Server:**
+You only start the frontend yourself:
 
-   ```powershell
-   # In the server directory
-   npm run start:http
-   ```
-
-2. **Start the Next.js Frontend:**
+1. **Start the Next.js Frontend:**
 
    ```powershell
    # In the root directory
    npm run dev
    ```
 
-3. **Start Claude Desktop and enable the MCP Server:**
+2. **Start Claude Desktop and enable the MCP Server:**
 
    - Launch Claude Desktop
    - Open settings (gear icon)
    - Go to the "Advanced" tab
    - Under "MCP Servers", enable "tldrawserver"
    - Click "Apply"
+
+   Claude Desktop now owns the server process. If you ever restart it and an old copy
+   is still holding port 3002, the freshly launched process automatically asks the
+   stale one to step down and takes over — just refresh the browser to reconnect.
 
 ### Verifying the Setup
 
@@ -271,26 +273,18 @@ The EventBus pattern makes the system more extensible:
    cd ..
    ```
 
-2. The easiest way to start everything is to use the provided script:
+2. Build the server, then start only the frontend. Claude Desktop launches the
+   server (which also hosts the HTTP/SSE bridge on port 3002) — do not run it
+   manually, or the duplicate process will fight over port 3002 and the canvas will
+   render nothing.
 
    ```powershell
-   # This will start all components in separate windows
-   ./start-all.bat
-   ```
-
-   Or if you prefer to start each component manually:
-
-   ```powershell
-   # Start the MCP server (for Claude)
+   # Build the MCP server once (rebuild after editing server/src)
    cd server
    npm run build
-   npm start  # Or use ./start.bat
+   cd ..
 
-   # In another terminal, start the HTTP server
-   cd server
-   npm run start:http  # Or use ./start-http.bat
-
-   # In a third terminal, start the Next.js frontend
+   # Start the Next.js frontend
    npm run dev
    ```
 

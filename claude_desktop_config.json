@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tldrawserver": {
+      "command": "node",
+      "args": ["/Users/farhadjaman/Desktop/Developer/tldraw-mcp/server/dist/index.js"]
+    }
+  }
+}
