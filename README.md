@@ -359,7 +359,8 @@ This mapping is handled automatically in the TldrawEditor component.
 The following tools are available to Claude via the MCP server:
 
 - `createShape`: Create basic shapes (rectangle, ellipse, triangle, diamond)
-- `connectShapes`: Connect shapes with arrows
+- `connectShapes`: Connect two shapes with a bound arrow (by their `label`/text handle)
+- `drawArrow`: Draw a free-form arrow between two points (not bound to shapes)
 - `addText`: Add standalone text elements
 - `createFlowchartStep`: Create a flowchart step (with optional connection to previous step)
 - `getSnapshot`: Get a snapshot of the current diagram

@@ -117,6 +117,24 @@ export default function TldrawEditor() {
             break;
           }
 
+          case "drawArrow": {
+            const { x1, y1, x2, y2, arrowType } = operation.payload;
+            const id = createShapeId();
+            editor.createShape({
+              id,
+              type: "arrow",
+              x: x1,
+              y: y1,
+              props: {
+                start: { x: 0, y: 0 },
+                end: { x: x2 - x1, y: y2 - y1 },
+                bend: arrowType === "curved" ? 30 : 0,
+              },
+            });
+            console.log("Drew free arrow with id:", id);
+            break;
+          }
+
           case "addText": {
             const { x, y, text, fontSize, label } = operation.payload;
 

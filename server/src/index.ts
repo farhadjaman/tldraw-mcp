@@ -142,6 +142,32 @@ server.tool(
 );
 
 server.tool(
+  "drawArrow",
+  {
+    x1: z.number().describe("Start point X (page coordinates)"),
+    y1: z.number().describe("Start point Y"),
+    x2: z.number().describe("End point X (arrowhead)"),
+    y2: z.number().describe("End point Y"),
+    arrowType: z.enum(["straight", "curved"]).optional(),
+  },
+  async ({ x1, y1, x2, y2, arrowType }) => {
+    broadcastOperation({
+      type: "drawArrow",
+      payload: { x1, y1, x2, y2, arrowType: arrowType || "straight" },
+    });
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Drew an arrow from (${x1}, ${y1}) to (${x2}, ${y2})`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
   "addText",
   {
     x: z.number(),
