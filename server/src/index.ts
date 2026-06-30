@@ -240,6 +240,72 @@ server.tool("getSnapshot", {}, async () => {
   });
 });
 
+server.tool(
+  "createPage",
+  { name: z.string() },
+  async ({ name }) => {
+    broadcastOperation({ type: "createPage", payload: { name } });
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Created page "${name}" and switched to it`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "switchPage",
+  { name: z.string() },
+  async ({ name }) => {
+    broadcastOperation({ type: "switchPage", payload: { name } });
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Switched to page "${name}"`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool("listPages", {}, async () => {
+  return new Promise((resolve) => {
+    const requestId = `pages-${Date.now()}`;
+    broadcastOperation({ type: "requestPageList", payload: { requestId } });
+
+    const listener = (data: {
+      type: string;
+      payload: Record<string, unknown>;
+    }) => {
+      if (
+        data.type === "pageListResponse" &&
+        data.payload.requestId === requestId
+      ) {
+        eventBus.off("page-list-response", listener);
+        const pages =
+          (data.payload.pages as { name: string; current: boolean }[]) || [];
+        const text = pages.length
+          ? pages.map((p) => `${p.current ? "* " : "  "}${p.name}`).join("\n")
+          : "No pages";
+        resolve({ content: [{ type: "text", text }] });
+      }
+    };
+
+    eventBus.on("page-list-response", listener);
+
+    setTimeout(() => {
+      eventBus.off("page-list-response", listener);
+      resolve({
+        content: [{ type: "text", text: "Failed to list pages (timeout)" }],
+      });
+    }, 5000);
+  });
+});
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
@@ -326,6 +392,26 @@ const httpServer = createServer((req, res) => {
             error: "Failed to process snapshot",
           })
         );
+      }
+    });
+  } else if (req.url === "/api/page-list" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const { requestId, pages } = JSON.parse(body);
+        eventBus.emit("page-list-response", {
+          type: "pageListResponse",
+          payload: { requestId, pages },
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true }));
+      } catch (error) {
+        logHttpToFile(`[HTTP Server] Error processing page list: ${error}`);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false }));
       }
     });
   } else if (req.url === "/api/shutdown" && req.method === "POST") {

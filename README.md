@@ -363,6 +363,9 @@ The following tools are available to Claude via the MCP server:
 - `addText`: Add standalone text elements
 - `createFlowchartStep`: Create a flowchart step (with optional connection to previous step)
 - `getSnapshot`: Get a snapshot of the current diagram
+- `createPage`: Create a new page and switch to it (subsequent shapes land there)
+- `switchPage`: Switch the active page by name
+- `listPages`: List all pages and which one is active
 
 ## Technology Stack
 

@@ -163,6 +163,46 @@ export default function TldrawEditor() {
             break;
           }
 
+          case "createPage": {
+            const { name } = operation.payload;
+            const before = new Set(editor.getPages().map((p) => p.id));
+            editor.createPage({ name });
+            const created = editor.getPages().find((p) => !before.has(p.id));
+            if (created) editor.setCurrentPage(created.id);
+            console.log("Created and switched to page:", name);
+            break;
+          }
+
+          case "switchPage": {
+            const { name } = operation.payload;
+            const page = editor.getPages().find((p) => p.name === name);
+            if (page) {
+              editor.setCurrentPage(page.id);
+              console.log("Switched to page:", name);
+            } else {
+              console.warn("No page named:", name);
+            }
+            break;
+          }
+
+          case "requestPageList": {
+            const { requestId } = operation.payload;
+            const currentPageId = editor.getCurrentPageId();
+            const pages = editor.getPages().map((p) => ({
+              name: p.name,
+              current: p.id === currentPageId,
+            }));
+
+            fetch("/api/page-list", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId, pages }),
+            }).catch((error) => {
+              console.error("Failed to send page list:", error);
+            });
+            break;
+          }
+
           case "requestSnapshot": {
             const { requestId } = operation.payload;
 
