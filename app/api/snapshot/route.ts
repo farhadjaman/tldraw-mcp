@@ -17,15 +17,17 @@ export async function POST(req: NextRequest) {
     );
 
     // Forward the snapshot to the MCP server
+    const bridge = new URL(process.env.BRIDGE_URL ?? "http://localhost:3002");
     const mcpRequest = http.request({
-      hostname: "localhost",
-      port: 3002,
+      hostname: bridge.hostname,
+      port: bridge.port || 3002,
       path: "/api/snapshot",
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
     });
+    mcpRequest.on("error", () => {});
 
     mcpRequest.write(JSON.stringify({ requestId, snapshot }));
     mcpRequest.end();

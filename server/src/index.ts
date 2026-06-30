@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { broadcastOperation, eventBus, TldrawOperation } from "./eventBus.js";
 import { createServer, request as httpRequest } from "http";
@@ -51,11 +52,13 @@ eventBus.setMaxListeners(0);
 logToFile("[Combined Server] Starting MCP and HTTP server...");
 logHttpToFile("[Combined Server] Starting MCP and HTTP server...");
 
-// Create MCP Server
-const server = new McpServer({
-  name: "TldrawServer",
-  version: "1.0.0",
-});
+// Build a fresh MCP server with all tools registered. In HTTP (stateless) mode we
+// build one per request; in stdio mode we build a single long-lived one.
+function buildServer() {
+  const server = new McpServer({
+    name: "TldrawServer",
+    version: "1.0.0",
+  });
 
 server.tool(
   "createShape",
@@ -306,13 +309,58 @@ server.tool("listPages", {}, async () => {
   });
 });
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+  return server;
+}
+
+// stdio (local Claude Desktop) by default; "http" exposes a remote /mcp endpoint.
+const MCP_TRANSPORT = process.env.MCP_TRANSPORT ?? "stdio";
+if (MCP_TRANSPORT === "stdio") {
+  const stdioServer = buildServer();
+  await stdioServer.connect(new StdioServerTransport());
+  logToFile("[MCP] Connected over stdio");
+} else {
+  logToFile("[MCP] HTTP transport enabled at /mcp");
+}
 
 // Create and start the HTTP server (after MCP server is initialized)
 const httpServer = createServer((req, res) => {
   logHttpToFile(`[HTTP Server] Received ${req.method} request to ${req.url}`);
-  if (req.url === "/api/tldraw-events" && req.method === "GET") {
+  if (req.url === "/healthz") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  } else if (req.url === "/mcp" && req.method === "POST") {
+    // Remote MCP over Streamable HTTP, stateless: a fresh server+transport per
+    // request. Tool calls still broadcast onto the shared in-process eventBus.
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", async () => {
+      try {
+        const parsed = body ? JSON.parse(body) : undefined;
+        const mcp = buildServer();
+        const mcpTransport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+          enableJsonResponse: true,
+        });
+        res.on("close", () => {
+          mcpTransport.close();
+          mcp.close();
+        });
+        await mcp.connect(mcpTransport);
+        await mcpTransport.handleRequest(req, res, parsed);
+      } catch (error) {
+        logHttpToFile(`[MCP] Error handling /mcp request: ${error}`);
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "internal error" }));
+        }
+      }
+    });
+  } else if (req.url === "/mcp") {
+    res.writeHead(405, { Allow: "POST" });
+    res.end();
+  } else if (req.url === "/api/tldraw-events" && req.method === "GET") {
     logHttpToFile("[HTTP Server] SSE connection established");
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -433,28 +481,28 @@ const httpServer = createServer((req, res) => {
 // that never exited) still owns port 3002, the browser stays attached to the dead
 // instance and never sees our operations. So when we hit EADDRINUSE we ask the
 // stale instance to step down, then take over the port ourselves.
+const PORT = Number(process.env.PORT ?? 3002);
 let portTakeoverAttempted = false;
 httpServer.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE" && !portTakeoverAttempted) {
     portTakeoverAttempted = true;
-    logHttpToFile("[HTTP Server] Port 3002 in use; asking the stale instance to step down");
+    logHttpToFile(`[HTTP Server] Port ${PORT} in use; asking the stale instance to step down`);
     const shutdownReq = httpRequest({
       hostname: "localhost",
-      port: 3002,
+      port: PORT,
       path: "/api/shutdown",
       method: "POST",
     });
     shutdownReq.on("error", () => {});
     shutdownReq.end();
-    setTimeout(() => httpServer.listen(3002), 600);
+    setTimeout(() => httpServer.listen(PORT), 600);
     return;
   }
   logHttpToFile(`[HTTP Server] listen error: ${err.code || err.message}`);
 });
 
-// Listen on port 3002
-httpServer.listen(3002, () => {
-  logHttpToFile("[HTTP Server] HTTP Server running on port 3002");
+httpServer.listen(PORT, () => {
+  logHttpToFile(`[HTTP Server] HTTP Server running on port ${PORT}`);
   logHttpToFile(
     `[HTTP Server] EventBus listeners: ${eventBus.listenerCount(
       "tldraw-operation"

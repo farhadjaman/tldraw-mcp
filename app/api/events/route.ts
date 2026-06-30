@@ -25,14 +25,12 @@ export async function GET(req: NextRequest) {
 
       try {
         console.log("[API] Events route: Connecting to HTTP server");
-        const response = await fetch(
-          "http://localhost:3002/api/tldraw-events",
-          {
-            headers: {
-              Accept: "text/event-stream",
-            },
-          }
-        );
+        const bridgeUrl = process.env.BRIDGE_URL ?? "http://localhost:3002";
+        const response = await fetch(`${bridgeUrl}/api/tldraw-events`, {
+          headers: {
+            Accept: "text/event-stream",
+          },
+        });
 
         console.log(
           "[API] Events route: HTTP server response status:",

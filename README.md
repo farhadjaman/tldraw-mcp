@@ -382,8 +382,17 @@ The project implements TypeScript interfaces for all message types to ensure typ
 - Type guards for runtime type checking
 - Strong typing for all MCP function parameters
 
-## Deploy on Vercel
+## Remote Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To run this on a server and connect Claude over a remote MCP URL
+(`https://<your-domain>/mcp`) instead of a local stdio process, see
+[DEPLOY.md](./DEPLOY.md). It ships the canvas and the MCP/bridge server as two
+`docker compose` containers bound to loopback, with your existing nginx terminating TLS
+and routing `/tldraw-mcp` to the MCP endpoint.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Server environment variables:
+
+- `MCP_TRANSPORT` — `stdio` (default, local Claude Desktop) or `http` (remote `/mcp`)
+- `PORT` — HTTP/SSE + MCP port (default `3002`)
+- `BRIDGE_URL` (frontend) — where the Next API routes reach the bridge (default
+  `http://localhost:3002`)

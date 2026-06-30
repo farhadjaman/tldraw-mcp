@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+server/node_modules
+server/dist
+server/*.log
+npm-debug.log
+Dockerfile*
+docker-compose.yml
+Caddyfile
+.env

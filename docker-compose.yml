@@ -1,0 +1,24 @@
+services:
+  server:
+    build: ./server
+    environment:
+      - MCP_TRANSPORT=http
+      - PORT=3002
+    # Exposed on loopback only; the host's nginx proxies to it.
+    # host:container — change the host port if 3102 is taken on the VM.
+    ports:
+      - "127.0.0.1:3102:3002"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      # Reaches the bridge over the internal compose network (not via nginx).
+      - BRIDGE_URL=http://server:3002
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      - server
+    restart: unless-stopped

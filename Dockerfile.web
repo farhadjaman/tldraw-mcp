@@ -1,0 +1,15 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install
+
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+EXPOSE 3000
+# BRIDGE_URL is injected at runtime (compose points it at the server container).
+CMD ["npm", "run", "start"]
