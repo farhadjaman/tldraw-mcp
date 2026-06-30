@@ -63,7 +63,8 @@ export default function TldrawEditor() {
 
         switch (operation.type) {
           case "createShape": {
-            const { shapeType, x, y, width, height, text } = operation.payload;
+            const { shapeType, x, y, width, height, text, label } =
+              operation.payload;
             const geo = GEO_TYPES.includes(shapeType) ? shapeType : "rectangle";
             const id = createShapeId();
             editor.createShape({
@@ -79,6 +80,7 @@ export default function TldrawEditor() {
               },
             });
 
+            if (label) shapesRef.current[label] = id;
             if ("stepNumber" in operation.payload) {
               shapesRef.current[`step-${operation.payload.stepNumber}`] = id;
             }
@@ -92,6 +94,15 @@ export default function TldrawEditor() {
 
             const fromShape = (shapesRef.current[fromId] || fromId) as TLShapeId;
             const toShape = (shapesRef.current[toId] || toId) as TLShapeId;
+
+            if (!editor.getShape(fromShape) || !editor.getShape(toShape)) {
+              console.warn(
+                "connectShapes: unknown shape handle(s):",
+                fromId,
+                toId
+              );
+              break;
+            }
 
             const arrowId = createShapeId();
             editor.createShape({
@@ -107,7 +118,7 @@ export default function TldrawEditor() {
           }
 
           case "addText": {
-            const { x, y, text, fontSize } = operation.payload;
+            const { x, y, text, fontSize, label } = operation.payload;
 
             const id = createShapeId();
             editor.createShape({
@@ -120,6 +131,8 @@ export default function TldrawEditor() {
                 scale: fontSize ? fontSize / 20 : 1,
               },
             });
+
+            if (label) shapesRef.current[label] = id;
 
             console.log("Created text with id:", id);
             break;
@@ -145,6 +158,7 @@ export default function TldrawEditor() {
             });
 
             shapesRef.current[`step-${stepNumber}`] = id;
+            if (title) shapesRef.current[title] = id;
 
             if (connectToPrevious && stepNumber > 1) {
               const prevStepId = shapesRef.current[

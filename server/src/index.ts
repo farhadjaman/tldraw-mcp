@@ -69,12 +69,19 @@ server.tool(
     width: z.number(),
     height: z.number(),
     text: z.string().optional(),
+    label: z
+      .string()
+      .optional()
+      .describe(
+        "A handle to reference this shape later in connectShapes. Defaults to `text` if omitted."
+      ),
   },
-  async ({ type, x, y, width, height, text }) => {
+  async ({ type, x, y, width, height, text, label }) => {
+    const handle = label || text;
     logToFile(
       `Creating shape: type=${type}, x=${x}, y=${y}, width=${width}, height=${height}, text=${
         text || ""
-      }`
+      }, label=${handle || ""}`
     );
     broadcastOperation({
       type: "createShape",
@@ -85,6 +92,7 @@ server.tool(
         width,
         height,
         text: text || "",
+        label: handle,
       },
     });
 
@@ -92,7 +100,9 @@ server.tool(
       content: [
         {
           type: "text",
-          text: `Created a ${type} at position (${x}, ${y})`,
+          text: handle
+            ? `Created a ${type} at (${x}, ${y}). Connect it with connectShapes using "${handle}".`
+            : `Created a ${type} at (${x}, ${y})`,
         },
       ],
     };
@@ -102,8 +112,12 @@ server.tool(
 server.tool(
   "connectShapes",
   {
-    fromId: z.string(),
-    toId: z.string(),
+    fromId: z
+      .string()
+      .describe("The label/handle of the source shape (set via createShape)."),
+    toId: z
+      .string()
+      .describe("The label/handle of the target shape (set via createShape)."),
     arrowType: z.enum(["straight", "curved", "orthogonal"]).optional(),
   },
   async ({ fromId, toId, arrowType }) => {
@@ -134,8 +148,14 @@ server.tool(
     y: z.number(),
     text: z.string(),
     fontSize: z.number().optional(),
+    label: z
+      .string()
+      .optional()
+      .describe(
+        "A handle to reference this text later in connectShapes. Defaults to `text` if omitted."
+      ),
   },
-  async ({ x, y, text, fontSize }) => {
+  async ({ x, y, text, fontSize, label }) => {
     broadcastOperation({
       type: "addText",
       payload: {
@@ -143,6 +163,7 @@ server.tool(
         y,
         text,
         fontSize: fontSize || 20,
+        label: label || text,
       },
     });
 
