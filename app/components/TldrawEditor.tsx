@@ -169,6 +169,41 @@ export default function TldrawEditor() {
             break;
           }
 
+          case "moveShape": {
+            const { label, x, y } = operation.payload;
+            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
+            const shape = editor.getShape(shapeId);
+
+            if (shape) {
+              editor.updateShape({ id: shapeId, type: shape.type, x, y });
+              console.log("Moved shape:", label);
+            } else {
+              console.warn("moveShape: unknown shape handle:", label);
+            }
+            break;
+          }
+
+          case "resizeShape": {
+            const { label, width, height } = operation.payload;
+            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
+            const shape = editor.getShape(shapeId);
+
+            if (shape && "w" in shape.props && "h" in shape.props) {
+              editor.updateShape({
+                id: shapeId,
+                type: shape.type,
+                props: { w: width, h: height },
+              });
+              console.log("Resized shape:", label);
+            } else {
+              console.warn(
+                "resizeShape: unknown or non-resizable shape handle:",
+                label
+              );
+            }
+            break;
+          }
+
           case "deleteShapesByLabels": {
             const { labels } = operation.payload as { labels: string[] };
             const ids = labels

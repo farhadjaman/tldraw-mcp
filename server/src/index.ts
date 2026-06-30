@@ -222,6 +222,52 @@ server.tool(
 );
 
 server.tool(
+  "moveShape",
+  {
+    label: z
+      .string()
+      .describe(
+        "The label/handle of the shape to move (set via createShape/addText)."
+      ),
+    x: z.number().describe("New top-left X in page coordinates."),
+    y: z.number().describe("New top-left Y in page coordinates."),
+  },
+  async ({ label, x, y }) => {
+    broadcastOperation({ type: "moveShape", payload: { label, x, y } });
+    return {
+      content: [{ type: "text", text: `Moved shape "${label}" to (${x}, ${y})` }],
+    };
+  }
+);
+
+server.tool(
+  "resizeShape",
+  {
+    label: z
+      .string()
+      .describe(
+        "The label/handle of the shape to resize (set via createShape)."
+      ),
+    width: z.number().positive().describe("New width."),
+    height: z.number().positive().describe("New height."),
+  },
+  async ({ label, width, height }) => {
+    broadcastOperation({
+      type: "resizeShape",
+      payload: { label, width, height },
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Resized shape "${label}" to ${width}×${height}`,
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
   "deleteShapesByLabels",
   {
     labels: z
