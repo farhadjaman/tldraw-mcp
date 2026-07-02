@@ -206,6 +206,27 @@ export default function TldrawEditor() {
             break;
           }
 
+          case "styleShape": {
+            const { label, color, fill } = operation.payload;
+            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
+            const shape = editor.getShape(shapeId);
+
+            if (shape) {
+              editor.updateShape({
+                id: shapeId,
+                type: shape.type,
+                props: {
+                  ...(color && "color" in shape.props ? { color } : {}),
+                  ...(fill && "fill" in shape.props ? { fill } : {}),
+                },
+              });
+              console.log("Restyled shape:", label);
+            } else {
+              console.warn("styleShape: unknown shape handle:", label);
+            }
+            break;
+          }
+
           case "deleteShapesByLabels": {
             const { labels } = operation.payload as { labels: string[] };
             const ids = labels

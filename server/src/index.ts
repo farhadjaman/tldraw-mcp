@@ -294,6 +294,39 @@ server.tool(
 );
 
 server.tool(
+  "styleShape",
+  {
+    label: z
+      .string()
+      .describe(
+        "The label/handle of the shape to restyle (set via createShape/addText)."
+      ),
+    color: z.enum(SHAPE_COLORS).optional().describe("New stroke/label color."),
+    fill: z
+      .enum(["none", "semi", "solid", "pattern"])
+      .optional()
+      .describe("New fill style (geo shapes only)."),
+  },
+  async ({ label, color, fill }) => {
+    if (!color && !fill) {
+      return {
+        content: [
+          { type: "text", text: "Nothing to change: pass color and/or fill." },
+        ],
+        isError: true,
+      };
+    }
+    broadcastOperation({ type: "styleShape", payload: { label, color, fill } });
+    const changes = [color && `color=${color}`, fill && `fill=${fill}`]
+      .filter(Boolean)
+      .join(", ");
+    return {
+      content: [{ type: "text", text: `Restyled shape "${label}" (${changes})` }],
+    };
+  }
+);
+
+server.tool(
   "deleteShapesByLabels",
   {
     labels: z
