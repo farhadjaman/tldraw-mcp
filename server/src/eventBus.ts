@@ -7,6 +7,8 @@ export interface TldrawShapePayload {
   width: number;
   height: number;
   text?: string;
+  color?: string;
+  fill?: string;
 }
 
 export interface TldrawConnectPayload {

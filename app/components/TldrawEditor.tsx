@@ -63,7 +63,7 @@ export default function TldrawEditor() {
 
         switch (operation.type) {
           case "createShape": {
-            const { shapeType, x, y, width, height, text, label } =
+            const { shapeType, x, y, width, height, text, color, fill, label } =
               operation.payload;
             const geo = GEO_TYPES.includes(shapeType) ? shapeType : "rectangle";
             const id = createShapeId();
@@ -77,6 +77,8 @@ export default function TldrawEditor() {
                 h: height,
                 geo,
                 ...(text ? { richText: toRichText(text) } : {}),
+                ...(color ? { color } : {}),
+                ...(fill ? { fill } : {}),
               },
             });
 

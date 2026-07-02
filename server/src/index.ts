@@ -54,6 +54,22 @@ logHttpToFile("[Combined Server] Starting MCP and HTTP server...");
 
 // Build a fresh MCP server with all tools registered. In HTTP (stateless) mode we
 // build one per request; in stdio mode we build a single long-lived one.
+const SHAPE_COLORS = [
+  "black",
+  "grey",
+  "light-violet",
+  "violet",
+  "blue",
+  "light-blue",
+  "yellow",
+  "orange",
+  "green",
+  "light-green",
+  "light-red",
+  "red",
+  "white",
+] as const;
+
 function buildServer() {
   const server = new McpServer({
     name: "TldrawServer",
@@ -69,6 +85,14 @@ server.tool(
     width: z.number(),
     height: z.number(),
     text: z.string().optional(),
+    color: z
+      .enum(SHAPE_COLORS)
+      .optional()
+      .describe("Stroke/label color. Defaults to black."),
+    fill: z
+      .enum(["none", "semi", "solid", "pattern"])
+      .optional()
+      .describe("Fill style for the shape. Defaults to none."),
     label: z
       .string()
       .optional()
@@ -76,12 +100,12 @@ server.tool(
         "A handle to reference this shape later in connectShapes. Defaults to `text` if omitted."
       ),
   },
-  async ({ type, x, y, width, height, text, label }) => {
+  async ({ type, x, y, width, height, text, color, fill, label }) => {
     const handle = label || text;
     logToFile(
       `Creating shape: type=${type}, x=${x}, y=${y}, width=${width}, height=${height}, text=${
         text || ""
-      }, label=${handle || ""}`
+      }, color=${color || ""}, fill=${fill || ""}, label=${handle || ""}`
     );
     broadcastOperation({
       type: "createShape",
@@ -92,6 +116,8 @@ server.tool(
         width,
         height,
         text: text || "",
+        color,
+        fill,
         label: handle,
       },
     });
