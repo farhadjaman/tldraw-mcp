@@ -13,6 +13,59 @@ import { useEffect, useRef } from "react";
 
 const GEO_TYPES = ["rectangle", "ellipse", "triangle", "diamond"] as const;
 
+// Plain text from a tldraw richText (tiptap) document.
+function richTextToPlain(node: unknown): string {
+  if (!node || typeof node !== "object") return "";
+  const n = node as { type?: string; text?: string; content?: unknown[] };
+  if (typeof n.text === "string") return n.text;
+  if (Array.isArray(n.content)) {
+    const inner = n.content.map(richTextToPlain);
+    return n.type === "doc" ? inner.join("\n") : inner.join("");
+  }
+  return "";
+}
+
+// Resolve a label to a shape id. The in-memory map only knows shapes created in
+// this tab session, so fall back to matching meta.label, then the shape's own
+// text (exact, then first line, then prefix) against what's on the canvas.
+function resolveShapeId(
+  editor: Editor,
+  map: Record<string, string>,
+  label: string
+): TLShapeId | undefined {
+  const direct = map[label] as TLShapeId | undefined;
+  if (direct && editor.getShape(direct)) return direct;
+  if (editor.getShape(label as TLShapeId)) return label as TLShapeId;
+
+  const norm = (s: string) => s.trim().toLowerCase();
+  const target = norm(label);
+  const shapes = editor.getCurrentPageShapes();
+
+  let hit = shapes.find(
+    (s) => typeof s.meta?.label === "string" && norm(s.meta.label) === target
+  );
+  if (!hit) {
+    const withText = shapes
+      .map((s) => ({
+        s,
+        text:
+          "richText" in s.props ? norm(richTextToPlain(s.props.richText)) : "",
+      }))
+      .filter((e) => e.text);
+    hit = (
+      withText.find((e) => e.text === target) ||
+      withText.find((e) => e.text.split("\n")[0].trim() === target) ||
+      withText.find((e) => e.text.startsWith(target))
+    )?.s;
+  }
+
+  if (hit) {
+    map[label] = hit.id;
+    return hit.id;
+  }
+  return undefined;
+}
+
 function bindArrow(
   editor: Editor,
   arrowId: TLShapeId,
@@ -72,6 +125,7 @@ export default function TldrawEditor() {
               type: "geo",
               x,
               y,
+              ...(label ? { meta: { label } } : {}),
               props: {
                 w: width,
                 h: height,
@@ -94,10 +148,10 @@ export default function TldrawEditor() {
           case "connectShapes": {
             const { fromId, toId, arrowType } = operation.payload;
 
-            const fromShape = (shapesRef.current[fromId] || fromId) as TLShapeId;
-            const toShape = (shapesRef.current[toId] || toId) as TLShapeId;
+            const fromShape = resolveShapeId(editor, shapesRef.current, fromId);
+            const toShape = resolveShapeId(editor, shapesRef.current, toId);
 
-            if (!editor.getShape(fromShape) || !editor.getShape(toShape)) {
+            if (!fromShape || !toShape) {
               console.warn(
                 "connectShapes: unknown shape handle(s):",
                 fromId,
@@ -146,6 +200,7 @@ export default function TldrawEditor() {
               type: "text",
               x,
               y,
+              ...(label ? { meta: { label } } : {}),
               props: {
                 richText: toRichText(text),
                 scale: fontSize ? fontSize / 20 : 1,
@@ -159,9 +214,9 @@ export default function TldrawEditor() {
           }
           case "deleteShape": {
             const { label } = operation.payload;
-            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
+            const shapeId = resolveShapeId(editor, shapesRef.current, label);
 
-            if (editor.getShape(shapeId)) {
+            if (shapeId) {
               editor.deleteShape(shapeId);
               delete shapesRef.current[label];
               console.log("Deleted shape:", label);
@@ -173,10 +228,10 @@ export default function TldrawEditor() {
 
           case "moveShape": {
             const { label, x, y } = operation.payload;
-            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
-            const shape = editor.getShape(shapeId);
+            const shapeId = resolveShapeId(editor, shapesRef.current, label);
+            const shape = shapeId ? editor.getShape(shapeId) : undefined;
 
-            if (shape) {
+            if (shapeId && shape) {
               editor.updateShape({ id: shapeId, type: shape.type, x, y });
               console.log("Moved shape:", label);
             } else {
@@ -187,10 +242,10 @@ export default function TldrawEditor() {
 
           case "resizeShape": {
             const { label, width, height } = operation.payload;
-            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
-            const shape = editor.getShape(shapeId);
+            const shapeId = resolveShapeId(editor, shapesRef.current, label);
+            const shape = shapeId ? editor.getShape(shapeId) : undefined;
 
-            if (shape && "w" in shape.props && "h" in shape.props) {
+            if (shapeId && shape && "w" in shape.props && "h" in shape.props) {
               editor.updateShape({
                 id: shapeId,
                 type: shape.type,
@@ -208,10 +263,10 @@ export default function TldrawEditor() {
 
           case "styleShape": {
             const { label, color, fill } = operation.payload;
-            const shapeId = (shapesRef.current[label] || label) as TLShapeId;
-            const shape = editor.getShape(shapeId);
+            const shapeId = resolveShapeId(editor, shapesRef.current, label);
+            const shape = shapeId ? editor.getShape(shapeId) : undefined;
 
-            if (shape) {
+            if (shapeId && shape) {
               editor.updateShape({
                 id: shapeId,
                 type: shape.type,
@@ -230,8 +285,8 @@ export default function TldrawEditor() {
           case "deleteShapesByLabels": {
             const { labels } = operation.payload as { labels: string[] };
             const ids = labels
-              .map((l) => (shapesRef.current[l] || l) as TLShapeId)
-              .filter((id) => editor.getShape(id));
+              .map((l) => resolveShapeId(editor, shapesRef.current, l))
+              .filter((id): id is TLShapeId => !!id);
 
             if (ids.length) editor.deleteShapes(ids);
             for (const l of labels) delete shapesRef.current[l];
@@ -274,6 +329,7 @@ export default function TldrawEditor() {
               type: "geo",
               x,
               y,
+              meta: { label: title || `step-${stepNumber}` },
               props: {
                 w: 160,
                 h: 80,
